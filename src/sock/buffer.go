@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	. "logger"
 )
 
 type Buffer struct {
@@ -68,7 +67,6 @@ func (b *Buffer) Read(buf []byte) (int, error) {
 		return 0, io.EOF
 	}
 	copy(buf, b.data[b.off:b.off+size])
-	LOG.Info("%s\n", string(buf))
 	b.off = b.off + size
 	return size, nil
 }

@@ -1,11 +1,12 @@
 package memcached
 
 import (
+	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	. "logger"
 	. "sock"
+	"strconv"
 )
 
 type Code uint8
@@ -52,28 +53,31 @@ var cmds = map[Code][]byte{
 
 func NewMemcachedServerCodec(reader io.Reader, writer io.Writer) Codec {
 	mc := new(MemcachedServerCodec)
-	mc.buffer = NewBuffer(1024, -1)
+	mc.rb = NewBuffer(4096, -1)
+	mc.wb = bytes.NewBuffer(make([]byte, 0, 4096))
+
 	mc.reader = reader
 	mc.writer = writer
 	return mc
 }
 
 type MemcachedServerCodec struct {
-	buffer *Buffer
+	rb     *Buffer
+	wb     *bytes.Buffer
 	reader io.Reader
 	writer io.Writer
 }
 
 func (c *MemcachedServerCodec) Decode() (interface{}, error) {
 	var from, pos int = -1, -1
-	pos = c.buffer.FindCRLF(from)
+	pos = c.rb.FindCRLF(from)
 	for pos < 0 { // need more data
-		n, err := c.buffer.ReadFrom(c.reader)
+		n, err := c.rb.ReadFrom(c.reader)
 		LOG.Debug("pos = %d, n = %d, err = %v", pos, n, err)
 
 		if n > 0 {
-			pos = c.buffer.FindCRLF(from)
-			if c.buffer.Len() > MAX_LINE_LENGTH && pos < 0 {
+			pos = c.rb.FindCRLF(from)
+			if c.rb.Len() > MAX_LINE_LENGTH && pos < 0 {
 				return nil, ErrTooLongLine
 			}
 		}
@@ -86,7 +90,7 @@ func (c *MemcachedServerCodec) Decode() (interface{}, error) {
 		}
 	}
 	line := make([]byte, pos+2, pos+2)
-	_, err := c.buffer.Read(line)
+	_, err := c.rb.Read(line)
 	if nil != err {
 		return nil, err
 	}
@@ -108,53 +112,63 @@ func (c *MemcachedServerCodec) Decode() (interface{}, error) {
 		LOG.Debug("[Decode] cmd = %s\n", cmd)
 		return &MemRequest{Err: "ERROR\r\n"}, nil
 	}
-	return h(cmd, c.buffer, c.reader, tk)
+	return h(cmd, c.rb, c.reader, tk)
 }
 
 func (c *MemcachedServerCodec) Encode(body interface{}) error {
-	buffers := make([][]byte, 0, 8)
 	resp, _ := body.(*MemResponse)
+
+	var buffer []byte
 	if "" != resp.Err {
 		LOG.Debug("[Encode] Op = %d, err = %s\n", resp.Op, resp.Err)
-		buffers = append(buffers, []byte(resp.Err))
+		buffer = []byte(resp.Err)
 	} else if resp.Op == SET || resp.Op == ADD || resp.Op == REPLACE {
 		if resp.Result {
-			buffers = append(buffers, []byte("STORED\r\n"))
+			buffer = []byte("STORED\r\n")
 		} else {
-			buffers = append(buffers, []byte("NOT_STORED\r\n"))
+			buffer = []byte("NOT_STORED\r\n")
 		}
 	} else if resp.Op == DELETE {
 		if resp.Result {
-			buffers = append(buffers, []byte("DELETED\r\n"))
+			buffer = []byte("DELETED\r\n")
 		} else {
-			buffers = append(buffers, []byte("NOT_FOUND\r\n"))
-		}
-	} else if resp.Op == GET {
-		if resp.Result {
-			line := fmt.Sprintf("VALUE %s %d %d\r\n", resp.Key, resp.Flags, resp.Bytes)
-
-			buffers = append(buffers, []byte(line))
-			buffers = append(buffers, resp.Data)
-			buffers = append(buffers, []byte("\r\nEND\r\n"))
-		} else {
-			buffers = append(buffers, []byte("END\r\n"))
+			buffer = []byte("NOT_FOUND\r\n")
 		}
 	} else if resp.Op == INCR || resp.Op == DECR {
 		if resp.Result {
-			buffers = append(buffers, []byte(fmt.Sprintf("%d\r\n", resp.Value)))
+			c.wb.WriteString(strconv.FormatInt(int64(resp.Value), 10))
+			c.wb.WriteString("\r\n")
+			buffer = c.wb.Bytes()
 		} else {
-			buffers = append(buffers, []byte("NOT_FOUND\r\n"))
+			buffer = []byte("NOT_FOUND\r\n")
+		}
+	} else if resp.Op == GET {
+		if resp.Result {
+			c.wb.WriteString("VALUE ")
+			c.wb.WriteString(resp.Key)
+			c.wb.WriteString(" ")
+			c.wb.WriteString(strconv.FormatInt(int64(resp.Flags), 10))
+			c.wb.WriteString(" ")
+			c.wb.WriteString(strconv.FormatInt(int64(resp.Bytes), 10))
+			c.wb.WriteString("\r\n")
+			c.wb.Write(resp.Data)
+			c.wb.WriteString("\r\nEND\r\n")
+			buffer = c.wb.Bytes()
+		} else {
+			buffer = []byte("END\r\n")
 		}
 	} else {
 		panic("unknow cmd")
-		//return &MemRequest{Err: "ERROR OP\r\n"}, nil
+
 	}
-	LOG.Debug("[Encode] '%v'\n", buffers)
-	for _, buffer := range buffers {
-		_, err := c.writer.Write(buffer)
-		if err != nil {
-			return err
-		}
+	// if len(buffer) == 0 {
+
+	// }
+	LOG.Debug("[Encode] '%v'\n", buffer)
+	_, err := c.writer.Write(buffer)
+	c.wb.Reset()
+	if err != nil {
+		return err
 	}
 	return nil
 }

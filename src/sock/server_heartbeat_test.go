@@ -30,11 +30,11 @@ func Test_Server_HeartBeat(t *testing.T) {
 	go func() {
 		server.Start()
 	}()
-	time.Sleep(time.Millisecond * 2000)
+	time.Sleep(time.Millisecond * 500)
 	client := NewClient(address, LineCodecBuild)
 	var wg sync.WaitGroup
-	wg.Add(10)
-	num := 10
+	wg.Add(3)
+	num := 3
 	client.SetReadCallBack(func(cn *Connection, msg *Message) {
 		buf := msg.Body.([]byte)
 		text := string(buf)

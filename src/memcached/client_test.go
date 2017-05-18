@@ -1,11 +1,14 @@
 package memcached
 
 import (
+	. "logger"
 	. "memcached"
 	"testing"
 )
 
 func Test_Client_SetGet(t *testing.T) {
+	LOG.SetLevel(0)
+
 	address := "127.0.0.1:9999"
 	s := NewMemcachedServer(address, NewMemcachedServerCodec)
 	ch := make(chan bool, 1)

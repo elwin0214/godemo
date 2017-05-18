@@ -1,8 +1,8 @@
 package memcached
 
 import (
+	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	. "logger"
 	"regexp"
@@ -15,25 +15,28 @@ var NUMBER_REG = regexp.MustCompile("^[0-9]+$")
 
 func NewMemcachedClientCodec(reader io.Reader, writer io.Writer) Codec {
 	mc := new(MemcachedClientCodec)
-	mc.buffer = NewBuffer(1024, -1)
+	mc.rb = NewBuffer(4096, -1)
+	mc.wb = bytes.NewBuffer(make([]byte, 0, 4096))
+
 	mc.reader = reader
 	mc.writer = writer
 	return mc
 }
 
 type MemcachedClientCodec struct {
-	buffer *Buffer
+	rb     *Buffer
+	wb     *bytes.Buffer
 	reader io.Reader
 	writer io.Writer
 }
 
 func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 	var from, pos int = -1, -1
-	pos = c.buffer.FindCRLF(from)
+	pos = c.rb.FindCRLF(from)
 	for pos < 0 { // need more data
-		n, err := c.buffer.ReadFrom(c.reader)
+		n, err := c.rb.ReadFrom(c.reader)
 		if n > 0 {
-			pos = c.buffer.FindCRLF(from)
+			pos = c.rb.FindCRLF(from)
 		}
 		if nil != err {
 			LOG.Error("[Decode] error = %s\n", err.Error())
@@ -46,7 +49,7 @@ func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 	}
 
 	buf := make([]byte, pos+2, pos+2)
-	_, err := c.buffer.Read(buf)
+	_, err := c.rb.Read(buf)
 	if nil != err {
 		return nil, err
 	}
@@ -101,8 +104,8 @@ func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 		}
 		resp.Bytes = uint16(bytes)
 		//LOG.Info("buf.Len() = %d bytes = %d", buf.Len(), resp.Bytes)
-		for !(c.buffer.Len() >= int(resp.Bytes)+2 && c.buffer.FindCRLF(int(resp.Bytes)) > 0) { // zero length?
-			n, err := c.buffer.ReadFrom(c.reader)
+		for !(c.rb.Len() >= int(resp.Bytes)+2 && c.rb.FindCRLF(int(resp.Bytes)) > 0) { // zero length?
+			n, err := c.rb.ReadFrom(c.reader)
 			if n > 0 {
 				continue
 			}
@@ -117,13 +120,13 @@ func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 		}
 
 		resp.Data = make([]byte, resp.Bytes, resp.Bytes)
-		c.buffer.Read(resp.Data)
-		c.buffer.Skip(2)
-		pos = c.buffer.FindCRLF(0)
+		c.rb.Read(resp.Data)
+		c.rb.Skip(2)
+		pos = c.rb.FindCRLF(0)
 		for pos < 0 { // need more data
-			n, err := c.buffer.ReadFrom(c.reader)
+			n, err := c.rb.ReadFrom(c.reader)
 			if n > 0 {
-				pos = c.buffer.FindCRLF(0)
+				pos = c.rb.FindCRLF(0)
 			}
 			if nil != err {
 				LOG.Error("[Decode] error = %s\n", err.Error())
@@ -133,8 +136,8 @@ func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 				return nil, errors.New("Connection closed")
 			}
 		}
-		c.buffer.Skip(pos + 2)
-		LOG.Debug("[Decode] 2 buf = %s\n", string(c.buffer.Bytes()))
+		c.rb.Skip(pos + 2)
+		LOG.Debug("[Decode] 2 buf = %s\n", string(c.rb.Bytes()))
 		resp.Result = true
 		return resp, nil
 	}
@@ -173,41 +176,45 @@ func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 func (c *MemcachedClientCodec) Encode(req interface{}) error {
 	r, _ := req.(*MemRequest)
 	if r.Op == SET || r.Op == ADD || r.Op == REPLACE {
-		line := fmt.Sprintf("%s %s %d %d %d\r\n", cmds[r.Op], r.Key, r.Flags, r.Exptime, r.Bytes)
-		_, err := c.writer.Write([]byte(line))
-		if nil != err {
-			return err
-		}
-		_, err = c.writer.Write(r.Data)
-		if nil != err {
-			return err
-		}
-		_, err = c.writer.Write([]byte("\r\n"))
-		if nil != err {
-			return err
-		}
+		//too large panic
+		c.wb.Write(cmds[r.Op])
+		c.wb.WriteString(" ")
+		c.wb.WriteString(r.Key)
+		c.wb.WriteString(" ")
+		c.wb.WriteString(strconv.FormatInt(int64(r.Flags), 10))
+		c.wb.WriteString(" ")
+		c.wb.WriteString(strconv.FormatInt(int64(r.Exptime), 10))
+		c.wb.WriteString(" ")
+		c.wb.WriteString(strconv.FormatInt(int64(r.Bytes), 10))
+		c.wb.WriteString("\r\n")
+		c.wb.Write(r.Data)
+		c.wb.WriteString("\r\n")
 	}
 
 	if r.Op == DELETE {
-		line := fmt.Sprintf("%s %s\r\n", cmds[r.Op], r.Key)
-		_, err := c.writer.Write([]byte(line))
-		if nil != err {
-			return err
-		}
+		c.wb.Write(cmds[r.Op])
+		c.wb.WriteString(" ")
+		c.wb.WriteString(r.Key)
+		c.wb.WriteString("\r\n")
 	}
 	if r.Op == GET {
-		line := fmt.Sprintf("%s %s\r\n", cmds[r.Op], r.Key)
-		_, err := c.writer.Write([]byte(line))
-		if nil != err {
-			return err
-		}
+		c.wb.Write(cmds[r.Op])
+		c.wb.WriteString(" ")
+		c.wb.WriteString(r.Key)
+		c.wb.WriteString("\r\n")
 	}
 	if r.Op == INCR || r.Op == DECR {
-		line := fmt.Sprintf("%s %s %d\r\n", cmds[r.Op], r.Key, r.Value)
-		_, err := c.writer.Write([]byte(line))
-		if nil != err {
-			return err
-		}
+		c.wb.Write(cmds[r.Op])
+		c.wb.WriteString(" ")
+		c.wb.WriteString(r.Key)
+		c.wb.WriteString(" ")
+		c.wb.WriteString(strconv.FormatInt(int64(r.Value), 10))
+		c.wb.WriteString("\r\n")
+	}
+	_, err := c.writer.Write(c.wb.Bytes())
+	c.wb.Reset()
+	if nil != err {
+		return err
 	}
 	return nil
 }

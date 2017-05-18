@@ -90,7 +90,7 @@ func handleStoreRequest(cmd string, buf *Buffer, reader io.Reader, tk *Tokenizer
 			return nil, ErrTooLongData
 		}
 		n, err := buf.ReadFrom(reader)
-		LOG.Info("%d, %v", n, err)
+
 		if n > 0 {
 			continue
 		}

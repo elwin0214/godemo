@@ -7,6 +7,8 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	. "sig"
 )
 
@@ -21,14 +23,17 @@ func main() {
 		http.ListenAndServe(*pa, nil)
 	}()
 
+	file, _ := os.Create("cpu.out")
+	pprof.StartCPUProfile(file)
 	LOG.SetHandler(NewStreamHandler(os.Stdout))
 	LOG.SetLevel(*level)
-	s := NewMemcachedServer(*la, NewMemcachedServerCodec)
+	LOG.Warn("maxprocs = %d\n", runtime.GOMAXPROCS(0))
 
+	s := NewMemcachedServer(*la, NewMemcachedServerCodec)
 	RegisterStopSignal(func() {
+		pprof.StopCPUProfile()
 		LOG.Info("close")
 		s.Close()
-
 	})
 	s.Listen()
 	s.Start()

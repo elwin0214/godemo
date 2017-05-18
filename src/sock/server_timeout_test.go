@@ -15,7 +15,7 @@ func Test_Server_Timeout(t *testing.T) {
 		if cn.IsClosed() {
 			t.Logf("connectin %s is closed.", cn.GetName())
 		} else {
-			cn.SetReadTimeout(1000)
+			cn.SetReadTimeout(500)
 			t.Logf("connectin %s is connected.", cn.GetName())
 		}
 	})
@@ -32,7 +32,7 @@ func Test_Server_Timeout(t *testing.T) {
 		t.Errorf("%s\n", err.Error())
 		return
 	}
-	time.Sleep(time.Millisecond * 6000)
+	time.Sleep(time.Millisecond * 2000)
 	server.Close()
 
 }

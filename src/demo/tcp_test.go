@@ -25,7 +25,7 @@ func Test_TcpReadTimeout(t *testing.T) {
 		return
 	}
 
-	cn.SetReadDeadline(time.Now().Add(time.Millisecond * 2000))
+	cn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
 
 	buf := make([]byte, 1024)
 	_, re := cn.Read(buf)
@@ -33,5 +33,6 @@ func Test_TcpReadTimeout(t *testing.T) {
 		t.Logf("%s\n", re.Error())
 		cn.Close()
 	}
+	listener.Close()
 	ch <- true
 }

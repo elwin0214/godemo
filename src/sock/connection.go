@@ -123,18 +123,17 @@ func (con *Connection) readLoop() {
 	}
 }
 
-func (con *Connection) Send(body interface{}) {
-	defer func() {
-		if err := recover(); err != nil {
-			LOG.Error("[Send] connecton = %d, msg = %s ", con.id, err)
-		}
-	}()
-	con.writeChan <- body // if closed
+func (con *Connection) Send(msg interface{}) {
+	if con.IsClosed() {
+		LOG.Warn("[Send] msg = %v send fail\n", msg)
+		return
+	}
+	con.writeChan <- msg // if closed
 }
 
-func (con *Connection) Write(buffer []byte) {
-	con.writeChan <- buffer
-}
+// func (con *Connection) Write(buffer []byte) {
+// 	con.writeChan <- buffer
+// }
 
 func (con *Connection) writeLoop() {
 	for {
