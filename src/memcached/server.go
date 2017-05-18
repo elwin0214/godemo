@@ -3,12 +3,14 @@ package memcached
 import (
 	. "logger"
 	. "sock"
+	"sync"
 )
 
 type MemcachedServer struct {
 	server      *Server
 	storage     *Storage
 	connections map[string]*Connection
+	mutex       sync.Mutex
 }
 
 func NewMemcachedServer(address string, codecBuild CodecBuild) *MemcachedServer {
@@ -33,6 +35,9 @@ func (s *MemcachedServer) Start() {
 }
 
 func (s *MemcachedServer) onConnection(con *Connection) {
+	//todo concurrent write
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	if con.IsClosed() {
 		delete(s.connections, con.GetName())
 	} else {
