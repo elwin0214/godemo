@@ -15,17 +15,18 @@ type MemcachedServer struct {
 
 func NewMemcachedServer(address string, codecBuild CodecBuild) *MemcachedServer {
 	s := new(MemcachedServer)
-	s.server = NewServer(address, codecBuild)
+	option := Option{NoDely: true, KeepAlive: true, ReadBufferSize: 32 * 1024, WriteBufferSize: 32 * 1024}
+	s.server = NewServer(address, codecBuild, option)
 	s.storage = NewStorage()
 	s.connections = make(map[string]*Connection, 1024)
 	return s
 }
 func (s *MemcachedServer) Listen() {
-	s.server.SetReadCallBack(func(con *Connection, msg *Message) {
+	s.server.OnRead(func(con *Connection, msg *Message) {
 		s.onRead(con, msg)
 	})
-	s.server.SetConnectionCallBack(func(con *Connection) {
-		s.onConnection(con)
+	s.server.OnConnect(func(con *Connection) {
+		s.onConnect(con)
 	})
 	s.server.Listen()
 }
@@ -34,7 +35,7 @@ func (s *MemcachedServer) Start() {
 	s.server.Start()
 }
 
-func (s *MemcachedServer) onConnection(con *Connection) {
+func (s *MemcachedServer) onConnect(con *Connection) {
 	//todo concurrent write
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

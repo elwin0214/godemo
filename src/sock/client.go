@@ -1,32 +1,34 @@
 package sock
 
 import (
+	"bufio"
 	. "logger"
 	"net"
-	"sync/atomic"
 )
 
 type Client struct {
 	address            string
 	counter            uint32
 	codecBuild         CodecBuild
+	option             Option
 	connectionCallBack ConnectionCallBack
 	readCallBack       ReadCallBack
 }
 
-func NewClient(address string, codecBuild CodecBuild) *Client {
+func NewClient(address string, codecBuild CodecBuild, option Option) *Client {
 	client := new(Client)
 	client.address = address
 	client.counter = 0
 	client.codecBuild = codecBuild
+	client.option = option
 	return client
 }
 
-func (c *Client) SetConnectionCallBack(callback ConnectionCallBack) {
+func (c *Client) OnConnect(callback ConnectionCallBack) {
 	c.connectionCallBack = callback
 }
 
-func (c *Client) SetReadCallBack(callback ReadCallBack) {
+func (c *Client) OnRead(callback ReadCallBack) {
 	c.readCallBack = callback
 }
 
@@ -36,10 +38,13 @@ func (c *Client) Connect() error {
 		return err
 	}
 	tcpCon, _ := cn.(*net.TCPConn)
-	tcpCon.SetNoDelay(true)
-	tcpCon.SetKeepAlive(true)
-	index := atomic.AddUint32(&c.counter, 1)
-	con := NewConnection(tcpCon, index, c.codecBuild(tcpCon, tcpCon))
+	tcpCon.SetNoDelay(c.option.NoDely)
+	tcpCon.SetKeepAlive(c.option.KeepAlive)
+	c.counter = c.counter + 1
+	index := c.counter
+
+	writer := bufio.NewWriterSize(tcpCon, c.option.WriteBufferSize)
+	con := NewConnection(tcpCon, writer, index, c.codecBuild(tcpCon, writer))
 	con.setConnectionCallBack(c.connectionCallBack)
 	con.setReadCallBack(c.readCallBack)
 	con.establish()

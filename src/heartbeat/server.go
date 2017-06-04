@@ -14,13 +14,15 @@ type HeartBeatServer struct {
 
 func NewHeartBeatServer(address string, codecBuild CodecBuild, readTimeoutMs time.Duration) *HeartBeatServer {
 	s := new(HeartBeatServer)
-	s.server = NewServer(address, codecBuild)
+	option := Option{NoDely: true, KeepAlive: true, ReadBufferSize: 1024, WriteBufferSize: 1024}
+
+	s.server = NewServer(address, codecBuild, option)
 	s.connections = make(map[string]*Connection)
 	s.readTimeoutMs = readTimeoutMs
-	s.server.SetConnectionCallBack(func(con *Connection) {
-		s.onConnection(con)
+	s.server.OnConnect(func(con *Connection) {
+		s.onConnect(con)
 	})
-	s.server.SetReadCallBack(func(con *Connection, msg *Message) {
+	s.server.OnRead(func(con *Connection, msg *Message) {
 		s.onRead(con, msg)
 	})
 	return s
@@ -41,7 +43,7 @@ func (hbs *HeartBeatServer) Close() {
 	}
 }
 
-func (hbs *HeartBeatServer) onConnection(con *Connection) {
+func (hbs *HeartBeatServer) onConnect(con *Connection) {
 	if con.IsClosed() {
 		delete(hbs.connections, con.GetName())
 	} else {

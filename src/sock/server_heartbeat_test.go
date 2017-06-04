@@ -8,9 +8,10 @@ import (
 )
 
 func Test_Server_HeartBeat(t *testing.T) {
+	option := Option{NoDely: true, KeepAlive: true, ReadBufferSize: 1024, WriteBufferSize: 1024}
 	address := "127.0.0.1:9999"
-	server := NewServer(address, LineCodecBuild)
-	server.SetConnectionCallBack(func(cn *Connection) {
+	server := NewServer(address, LineCodecBuild, option)
+	server.OnConnect(func(cn *Connection) {
 		if cn.IsClosed() {
 			t.Logf("connectin %s is closed.\n", cn.GetName())
 		} else {
@@ -31,11 +32,11 @@ func Test_Server_HeartBeat(t *testing.T) {
 		server.Start()
 	}()
 	time.Sleep(time.Millisecond * 500)
-	client := NewClient(address, LineCodecBuild)
+	client := NewClient(address, LineCodecBuild, option)
 	var wg sync.WaitGroup
 	wg.Add(3)
 	num := 3
-	client.SetReadCallBack(func(cn *Connection, msg *Message) {
+	client.OnRead(func(cn *Connection, msg *Message) {
 		buf := msg.Body.([]byte)
 		text := string(buf)
 		t.Logf("client receive '%s' from connection %s\n", text, cn.GetName())

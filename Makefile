@@ -10,11 +10,16 @@ bench:
 	go test -bench . -run=^Benchmark src/sock/*_test.go -v
 	go test -bench . -run=^Benchmark src/memcached/*_test.go -v 
 
+map_bench:
+	go test src/logger/demo/bench_map_test.go
+	
 install:
 	go install src/godemo/hb_client.go
 	go install src/godemo/hb_server.go
 	go install src/godemo/mem_client.go
 	go install src/godemo/mem_server.go
+	go install src/godemo/raw_bench.go
 
 clean:
 	rm -rf ./bin
+	rm -rf ./pkg

@@ -19,11 +19,11 @@ type FixedLenCodec struct {
 	writer    io.Writer
 }
 
-func NewFixedLenCodec(reader io.Reader, writer io.Writer, isLittle bool) *FixedLenCodec {
+func NewFixedLenCodec(r io.Reader, w io.Writer, isLittle bool) *FixedLenCodec {
 	if isLittle {
-		return &FixedLenCodec{reader: reader, writer: writer, byteOrder: binary.LittleEndian}
+		return &FixedLenCodec{reader: r, writer: w, byteOrder: binary.LittleEndian}
 	} else {
-		return &FixedLenCodec{reader: reader, writer: writer, byteOrder: binary.BigEndian}
+		return &FixedLenCodec{reader: r, writer: w, byteOrder: binary.BigEndian}
 	}
 }
 
@@ -66,20 +66,16 @@ func (c *FixedLenCodec) Encode(msg interface{}) error {
 		return err
 	}
 	_, err = c.writer.Write(body)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 type LineCodec struct {
-	reader      io.Reader
-	writer      io.Writer
-	bufioReader *bufio.Reader
+	writer io.Writer
+	reader *bufio.Reader
 }
 
 func NewLineCodec(reader io.Reader, writer io.Writer) *LineCodec {
-	return &LineCodec{reader: reader, writer: writer, bufioReader: bufio.NewReader(reader)}
+	return &LineCodec{writer: writer, reader: bufio.NewReader(reader)}
 }
 
 func LineCodecBuild(reader io.Reader, writer io.Writer) Codec {
@@ -87,7 +83,7 @@ func LineCodecBuild(reader io.Reader, writer io.Writer) Codec {
 }
 
 func (c *LineCodec) Decode() (interface{}, error) {
-	line, err := c.bufioReader.ReadSlice('\n')
+	line, err := c.reader.ReadSlice('\n')
 	if err != nil {
 		return nil, err
 	}
@@ -101,14 +97,10 @@ func (c *LineCodec) Encode(msg interface{}) error {
 	if !ok {
 		return errors.New("fail cast to []byte")
 	}
-
 	_, err := c.writer.Write(buf)
 	if err != nil {
 		return err
 	}
 	_, err = c.writer.Write([]byte{'\n'})
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

@@ -12,6 +12,7 @@ import (
 	"runtime/pprof"
 	"sync"
 	"time"
+	"util"
 )
 
 func main() {
@@ -31,11 +32,14 @@ func main() {
 	LOG.SetHandler(NewStreamHandler(os.Stdout))
 	LOG.SetLevel(*level)
 	LOG.Warn("maxprocs = %d\n", runtime.GOMAXPROCS(0))
+	LOG.Warn("cpuprof = %s\n", *cpuprof)
 
 	if *prof {
-		file, _ := os.Create(*cpuprof)
-		pprof.StartCPUProfile(file)
+		cf, _ := os.Create(*cpuprof)
+		mf, _ := os.Create("mem.out")
+		pprof.StartCPUProfile(cf)
 		defer pprof.StopCPUProfile()
+		defer pprof.WriteHeapProfile(mf)
 	}
 	buf := make([]byte, 0, *vl)
 	for j := 0; j < *vl; j++ {
@@ -47,6 +51,8 @@ func main() {
 	c.Start()
 	var wg sync.WaitGroup
 	wg.Add(*clients)
+	stat := util.NewStat(1024*1024, 0, 100)
+	stat.Start()
 	start := time.Now()
 	for i := 0; i < *clients; i++ {
 		go func(index int) {
@@ -55,9 +61,12 @@ func main() {
 			defer wg.Done()
 			for k := 0; k < *requests; k++ {
 				key := fmt.Sprintf("%d_%d", index, k)
-
+				s := time.Now()
 				r, err := c.Set(key, value)
-				LOG.Info("key = %s value = %s result = %t err = %v\n", key, value, r, err)
+				e := time.Now()
+				elasp := int(e.Sub(s) / 1000 / 1000)
+				stat.Collect(elasp)
+				LOG.Info("key = %s value = %s result = %t err = %v elaspe = %d\n", key, value, r, err, elasp)
 
 			}
 			LOG.Info("asd")
@@ -66,6 +75,11 @@ func main() {
 	wg.Wait()
 	end := time.Now()
 	LOG.Warn("[main] client = %d requests = %d time = %dms\n", *clients, *requests, end.Sub(start)/1000/1000)
+	time.Sleep(1000 * time.Millisecond)
+
+	stat.Close()
+	LOG.Warn(stat.View())
+
 	time.Sleep(10000 * time.Millisecond)
 	c.Close()
 }

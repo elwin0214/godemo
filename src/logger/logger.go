@@ -65,6 +65,7 @@ func (l *Logger) run() {
 			l.pushBuf(buffer)
 		case <-l.stop:
 			l.hanlder.Close()
+			return
 		}
 	}
 }

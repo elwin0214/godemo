@@ -1,35 +1,37 @@
 package sock
 
 import (
+	"bufio"
 	. "logger"
 	"net"
-	"sync/atomic"
+	. "util"
 )
 
 type Server struct {
-	address    string
-	listener   *net.TCPListener
-	counter    uint32
-	codecBuild CodecBuild
-	closeFlag  int32
-
+	address            string
+	listener           *net.TCPListener
+	counter            uint32
+	codecBuild         CodecBuild
+	closeFlag          *AtomicInt
+	option             Option
 	connectionCallBack ConnectionCallBack
 	readCallBack       ReadCallBack
 }
 
-func NewServer(address string, codecBuild CodecBuild) *Server {
-	server := &Server{address: address}
-	server.counter = 0
-	server.closeFlag = 0
-	server.codecBuild = codecBuild
-	return server
+func NewServer(address string, codecBuild CodecBuild, option Option) *Server {
+	s := &Server{address: address}
+	s.counter = 0
+	s.closeFlag = NewAtomicInt(0)
+	s.codecBuild = codecBuild
+	s.option = option
+	return s
 }
 
-func (s *Server) SetConnectionCallBack(callback ConnectionCallBack) {
+func (s *Server) OnConnect(callback ConnectionCallBack) {
 	s.connectionCallBack = callback
 }
 
-func (s *Server) SetReadCallBack(callback ReadCallBack) {
+func (s *Server) OnRead(callback ReadCallBack) {
 	s.readCallBack = callback
 }
 
@@ -47,7 +49,7 @@ func (s *Server) Listen() error {
 
 func (s *Server) Start() {
 	for {
-		if atomic.LoadInt32(&s.closeFlag) == 1 {
+		if s.closeFlag.Get() == 1 {
 			return
 		}
 		cn, acceptErr := s.listener.Accept()
@@ -56,11 +58,12 @@ func (s *Server) Start() {
 			continue
 		}
 		tcpCon, _ := cn.(*net.TCPConn)
-		tcpCon.SetNoDelay(true)
-		tcpCon.SetKeepAlive(true)
-
-		index := atomic.AddUint32(&s.counter, 1)
-		con := NewConnection(tcpCon, index, s.codecBuild(tcpCon, tcpCon))
+		tcpCon.SetNoDelay(s.option.NoDely)
+		tcpCon.SetKeepAlive(s.option.KeepAlive)
+		s.counter = s.counter + 1
+		index := s.counter
+		writer := bufio.NewWriterSize(tcpCon, s.option.WriteBufferSize)
+		con := NewConnection(tcpCon, writer, index, s.codecBuild(tcpCon, writer))
 
 		con.setConnectionCallBack(s.connectionCallBack)
 		con.setReadCallBack(s.readCallBack)
@@ -73,7 +76,7 @@ func (s *Server) Start() {
 }
 
 func (s *Server) Close() {
-	if atomic.CompareAndSwapInt32(&s.closeFlag, 0, 1) {
+	if s.closeFlag.Cas(0, 1) {
 		LOG.Info("[Close] server closed")
 		s.listener.Close()
 	}

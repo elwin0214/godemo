@@ -13,11 +13,13 @@ import (
 
 var NUMBER_REG = regexp.MustCompile("^[0-9]+$")
 
+const (
+	defaultBufSize = 32 * 1024
+)
+
 func NewMemcachedClientCodec(reader io.Reader, writer io.Writer) Codec {
 	mc := new(MemcachedClientCodec)
-	mc.rb = NewBuffer(4096, -1)
-	mc.wb = bytes.NewBuffer(make([]byte, 0, 4096))
-
+	mc.rb = NewBuffer(defaultBufSize, -1)
 	mc.reader = reader
 	mc.writer = writer
 	return mc
@@ -25,7 +27,6 @@ func NewMemcachedClientCodec(reader io.Reader, writer io.Writer) Codec {
 
 type MemcachedClientCodec struct {
 	rb     *Buffer
-	wb     *bytes.Buffer
 	reader io.Reader
 	writer io.Writer
 }
@@ -175,46 +176,52 @@ func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 
 func (c *MemcachedClientCodec) Encode(req interface{}) error {
 	r, _ := req.(*MemRequest)
+	var buf []byte
 	if r.Op == SET || r.Op == ADD || r.Op == REPLACE {
 		//too large panic
-		c.wb.Write(cmds[r.Op])
-		c.wb.WriteString(" ")
-		c.wb.WriteString(r.Key)
-		c.wb.WriteString(" ")
-		c.wb.WriteString(strconv.FormatInt(int64(r.Flags), 10))
-		c.wb.WriteString(" ")
-		c.wb.WriteString(strconv.FormatInt(int64(r.Exptime), 10))
-		c.wb.WriteString(" ")
-		c.wb.WriteString(strconv.FormatInt(int64(r.Bytes), 10))
-		c.wb.WriteString("\r\n")
-		c.wb.Write(r.Data)
-		c.wb.WriteString("\r\n")
+		//todo writer error
+		buffer := bytes.NewBuffer(make([]byte, 0, len(r.Data)+1024))
+		buffer.Write(cmds[r.Op])
+		buffer.WriteString(" ")
+		buffer.WriteString(r.Key)
+		buffer.WriteString(" ")
+		buffer.WriteString(strconv.FormatInt(int64(r.Flags), 10))
+		buffer.WriteString(" ")
+		buffer.WriteString(strconv.FormatInt(int64(r.Exptime), 10))
+		buffer.WriteString(" ")
+		buffer.WriteString(strconv.FormatInt(int64(r.Bytes), 10))
+		buffer.WriteString("\r\n")
+		buffer.Write(r.Data)
+		buffer.WriteString("\r\n")
+		buf = buffer.Bytes()
 	}
 
 	if r.Op == DELETE {
-		c.wb.Write(cmds[r.Op])
-		c.wb.WriteString(" ")
-		c.wb.WriteString(r.Key)
-		c.wb.WriteString("\r\n")
+		buffer := bytes.NewBuffer(make([]byte, 0, 1024))
+		buffer.Write(cmds[r.Op])
+		buffer.WriteString(" ")
+		buffer.WriteString(r.Key)
+		buffer.WriteString("\r\n")
+		buf = buffer.Bytes()
 	}
 	if r.Op == GET {
-		c.wb.Write(cmds[r.Op])
-		c.wb.WriteString(" ")
-		c.wb.WriteString(r.Key)
-		c.wb.WriteString("\r\n")
+		buffer := bytes.NewBuffer(make([]byte, 0, 1024))
+		buffer.Write(cmds[r.Op])
+		buffer.WriteString(" ")
+		buffer.WriteString(r.Key)
+		buffer.WriteString("\r\n")
+		buf = buffer.Bytes()
 	}
 	if r.Op == INCR || r.Op == DECR {
-		c.wb.Write(cmds[r.Op])
-		c.wb.WriteString(" ")
-		c.wb.WriteString(r.Key)
-		c.wb.WriteString(" ")
-		c.wb.WriteString(strconv.FormatInt(int64(r.Value), 10))
-		c.wb.WriteString("\r\n")
+		buffer := bytes.NewBuffer(make([]byte, 0, 1024))
+		buffer.Write(cmds[r.Op])
+		buffer.WriteString(" ")
+		buffer.WriteString(r.Key)
+		buffer.WriteString(" ")
+		buffer.WriteString(strconv.FormatInt(int64(r.Value), 10))
+		buffer.WriteString("\r\n")
+		buf = buffer.Bytes()
 	}
-	_, err := c.writer.Write(c.wb.Bytes())
-	c.wb.Reset()
-	if nil != err {
-		return err
-	}
-	return nil
+	_, err := c.writer.Write(buf)
+	return err
 }

@@ -1,6 +1,7 @@
 package memcached
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	. "logger"
@@ -16,7 +17,10 @@ type Command struct {
 	respChan chan *MemResponse
 }
 type Session struct {
-	conn         net.Conn
+	conn   net.Conn
+	writer *bufio.Writer
+	//		writer := bufio.NewWriterSize(tcpCon, s.option.WriteBufferSize)
+
 	codec        Codec
 	sendingQueue chan Command
 	sentQueue    chan Command
@@ -25,10 +29,11 @@ type Session struct {
 	closeFlag    *util.AtomicInt
 }
 
-func newSession(conn net.Conn) *Session {
+func newSession(conn net.Conn, writeBufferSize int) *Session {
 	s := new(Session)
 	s.conn = conn
-	s.codec = NewMemcachedClientCodec(conn, conn)
+	s.writer = bufio.NewWriterSize(conn, writeBufferSize)
+	s.codec = NewMemcachedClientCodec(conn, s.writer)
 	s.sendingQueue = make(chan Command, 1024)
 	s.sentQueue = make(chan Command, 1024)
 	s.closeFlag = util.NewAtomicInt(0)
@@ -78,7 +83,6 @@ func (s *Session) readLoop() {
 		resp, err := s.codec.Decode()
 		if nil != err {
 			LOG.Error("[writeLoop] error = %s\n", err.Error())
-
 			s.close()
 			return
 		}
@@ -87,9 +91,7 @@ func (s *Session) readLoop() {
 			mresp, _ := resp.(*MemResponse)
 			cmd.respChan <- mresp
 		default: //not exit sent cmd
-
 			LOG.Error("[writeLoop] not exist sent command for %v\n", resp)
-
 			s.close()
 		}
 	}
@@ -98,6 +100,7 @@ func (s *Session) readLoop() {
 func (s *Session) writeLoop(ctx context.Context) {
 	for {
 		var cmd Command
+		got := true
 		//transfer the cmd from sending queue to the sent queue at first.
 		//then write the request in cmd to the socket
 		//otherwise the readLoop goroute can not find the cmd in the sent queue when got the response
@@ -107,22 +110,37 @@ func (s *Session) writeLoop(ctx context.Context) {
 
 		case <-ctx.Done():
 			return
+		default:
+			got = false
+
 		}
-		LOG.Debug("[writeLoop] op = %d key = %s \n", cmd.req.Op, cmd.req.Key)
+		if got {
+			LOG.Debug("[writeLoop] op = %d key = %s \n", cmd.req.Op, cmd.req.Key)
+		}
 
-		//dont block in sentQueue when closing
-		select {
+		if got {
+			//dont block in sentQueue when closing
+			select {
+			case s.sentQueue <- cmd:
+				err := s.codec.Encode(cmd.req)
+				if nil != err {
+					LOG.Error("[writeLoop] error = %s\n", err.Error())
+					s.close()
+					return
+				}
 
-		case s.sentQueue <- cmd:
-			err := s.codec.Encode(cmd.req)
+			case <-ctx.Done():
+				s.close()
+				return
+			}
+		} else {
+			LOG.Debug("[writeLoop] buffer = %d\n", s.writer.Buffered())
+			err := s.writer.Flush()
 			if nil != err {
 				LOG.Error("[writeLoop] error = %s\n", err.Error())
 				s.close()
 				return
 			}
-		case <-ctx.Done():
-			s.close()
-			return
 		}
 	}
 }
@@ -148,14 +166,18 @@ type MemcachedClient struct {
 }
 
 func NewMemcachedClient(address string, sessionSize int, connectTimeoutMs time.Duration) *MemcachedClient {
-	return &MemcachedClient{address: address, sessionSize: sessionSize, connectTimeoutMs: connectTimeoutMs}
+	c := new(MemcachedClient)
+	c.address = address
+	c.sessionSize = sessionSize
+	c.connectTimeoutMs = connectTimeoutMs
+	return c
 }
 
 func (c *MemcachedClient) Start() {
 	c.sessions = make([]*Session, 0, c.sessionSize)
 	for i := 0; i < c.sessionSize; i++ {
 		con, _ := c.connect()
-		c.sessions = append(c.sessions, newSession(con))
+		c.sessions = append(c.sessions, newSession(con, 16*1024))
 	}
 }
 
@@ -173,8 +195,8 @@ func (c *MemcachedClient) connect() (net.Conn, error) {
 		return cn, err
 	}
 	tcpCon, _ := cn.(*net.TCPConn)
-	tcpCon.SetNoDelay(true)
 	tcpCon.SetKeepAlive(true)
+	tcpCon.SetNoDelay(true)
 	return cn, nil
 }
 

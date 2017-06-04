@@ -79,6 +79,10 @@ func (s *Storage) exit() {
 	s.cancel()
 }
 
+func (s *Storage) T_exit() {
+	s.exit()
+}
+
 func (s *Storage) handleGet(request *MemRequest) *MemResponse {
 	item, ok := s.data[request.Key]
 	if !ok {

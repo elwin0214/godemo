@@ -10,7 +10,7 @@ func Test_Client_SetGet(t *testing.T) {
 	LOG.SetLevel(0)
 
 	address := "127.0.0.1:9999"
-	s := NewMemcachedServer(address, NewMemcachedServerCodec)
+	s := NewMemcachedServer(address, NewMemcachedServerCodec, 4096, 4096)
 	ch := make(chan bool, 1)
 	go func() {
 		s.Listen()

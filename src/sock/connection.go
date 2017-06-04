@@ -4,19 +4,20 @@ import (
 	"fmt"
 	. "logger"
 	"net"
-	//"sync/atomic"
 	"time"
 	"util"
 )
 
 type Connection struct {
 	//base
-	id      uint32
-	name    string
-	tcpConn net.Conn
-	//closeFlag int32
+	id        uint32
+	name      string
 	closeFlag *util.AtomicInt
-	codec     Codec
+
+	//io
+	tcpConn *net.TCPConn
+	codec   Codec
+	flusher Flusher
 
 	//callback
 	connectionCallBack ConnectionCallBack
@@ -33,13 +34,15 @@ type Connection struct {
 	readWriteChannelTimeoutCallBack ConnectionCallBack
 }
 
-func NewConnection(tcpConn net.Conn, index uint32, codec Codec) *Connection {
+func NewConnection(tcpConn *net.TCPConn, flusher Flusher, index uint32, codec Codec) *Connection {
 	con := new(Connection)
 	con.id = index
 	con.name = fmt.Sprintf("%s-%d", tcpConn.RemoteAddr().String(), index)
+
 	con.tcpConn = tcpConn
-	//con.reader = bufio.NewReader(tcpConn)
 	con.codec = codec
+	con.flusher = flusher
+
 	con.writeChan = make(chan interface{}, 1024)
 	con.closeFlag = util.NewAtomicInt(0)
 	con.readWriteChannelTimeout = time.Millisecond * 6000
@@ -102,18 +105,16 @@ func (con *Connection) SetReadTimeout(timeoutMs time.Duration) {
 }
 
 func (con *Connection) readLoop() {
-	if con.readTimeout > 0 {
-		con.tcpConn.SetReadDeadline(time.Now().Add(con.readTimeout))
-	}
+
 	for {
+		if con.readTimeout > 0 {
+			con.tcpConn.SetReadDeadline(time.Now().Add(con.readTimeout))
+		}
 		body, err := con.codec.Decode()
 		if nil != err {
 			LOG.Error("[readLoop] connection = %s, error = %s, goroute exit\n", con.GetName(), err.Error())
 			con.Close()
 			return
-		}
-		if con.readTimeout > 0 {
-			con.tcpConn.SetReadDeadline(time.Now().Add(con.readTimeout))
 		}
 		if nil != con.readCallBack {
 			con.readCallBack(con, &Message{Id: con.id, Body: body})
@@ -131,14 +132,11 @@ func (con *Connection) Send(msg interface{}) {
 	con.writeChan <- msg // if closed
 }
 
-// func (con *Connection) Write(buffer []byte) {
-// 	con.writeChan <- buffer
-// }
-
 func (con *Connection) writeLoop() {
 	for {
-		select {
+
 		//heart beat
+		select {
 		case <-con.readWriteChannelTimer.C:
 			if con.IsClosed() {
 				LOG.Info("[writeLoop] connection = %s, connection is closed, goroute exit.\n", con.GetName())
@@ -155,7 +153,7 @@ func (con *Connection) writeLoop() {
 				con.readWriteChannelTimer.Reset(con.readWriteChannelTimeout)
 			}
 
-		case body, ok := <-con.writeChan:
+		case msg, ok := <-con.writeChan:
 			if !ok {
 				LOG.Error("[writeLoop] connection = %s, write channel is closed, goroute exit.", con.GetName())
 				return
@@ -164,7 +162,13 @@ func (con *Connection) writeLoop() {
 				LOG.Error("[writeLoop] connection = %s, connection is closed, goroute exit.\n", con.GetName())
 				return
 			}
-			err := con.codec.Encode(body)
+			err := con.codec.Encode(msg)
+			if nil != err {
+				con.Close()
+				LOG.Error("[writeLoop] connection = %s, error = %s, close conn, goroute exit.\n", con.GetName(), err.Error())
+				return
+			}
+			err = con.flusher.Flush()
 			if nil != err {
 				con.Close()
 				LOG.Error("[writeLoop] connection = %s, error = %s, close conn, goroute exit.\n", con.GetName(), err.Error())
@@ -173,6 +177,5 @@ func (con *Connection) writeLoop() {
 			con.lastWriteTime = time.Now()
 			con.readWriteChannelTimer.Reset(con.readWriteChannelTimeout)
 		}
-
 	}
 }

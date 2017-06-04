@@ -11,11 +11,12 @@ func Test_Client_Get(t *testing.T) {
 	req := &MemRequest{Op: GET, Key: "key", Flags: 1, Exptime: 1}
 	buffer := bytes.NewBuffer(make([]byte, 0, 1024))
 
-	codec := NewMemcachedClientCodec(nil, buffer)
+	codec := NewMemcachedClientCodec(nil, buffer, 4096, 4096)
 	err := codec.Encode(req)
 	if nil != err {
 		t.Errorf("error is %s\n", err.Error())
 	}
+	codec.Flush()
 	if line != string(buffer.Bytes()) {
 		t.Errorf("%s\n", string(buffer.Bytes()))
 	}
@@ -27,11 +28,12 @@ func Test_Client_Set(t *testing.T) {
 	req.Data = []byte("ab")
 	buffer := bytes.NewBuffer(make([]byte, 0, 1024))
 
-	codec := NewMemcachedClientCodec(nil, buffer)
+	codec := NewMemcachedClientCodec(nil, buffer, 4096, 4096)
 	err := codec.Encode(req)
 	if nil != err {
 		t.Errorf("error is %s\n", err.Error())
 	}
+	codec.Flush()
 	if line != string(buffer.Bytes()) {
 		t.Errorf("%s\n", string(buffer.Bytes()))
 	}
@@ -42,14 +44,12 @@ func Test_Client_Decode(t *testing.T) {
 	for i := 0; i < 1024; i++ {
 		buffer.Write([]byte("STORED\r\n"))
 	}
-	codec := NewMemcachedClientCodec(buffer, nil)
+	codec := NewMemcachedClientCodec(buffer, nil, 4096, 4096)
 	for i := 0; i < 1024; i++ {
 		resp, _ := codec.Decode()
-
 		if nil == resp {
 			t.Errorf("can not decode a response\n")
 		}
-		//t.Logf("%v %v", resp, err)
 	}
 	resp, _ := codec.Decode()
 	if nil != resp {

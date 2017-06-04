@@ -20,6 +20,9 @@ const (
 	INCR    = Code(6)
 	DECR    = Code(7)
 )
+const (
+	defaultReadBufSize = 32 * 1024
+)
 
 const (
 	MAX_KEY_LENGTH   = int(1<<8 - 1)
@@ -53,9 +56,7 @@ var cmds = map[Code][]byte{
 
 func NewMemcachedServerCodec(reader io.Reader, writer io.Writer) Codec {
 	mc := new(MemcachedServerCodec)
-	mc.rb = NewBuffer(4096, -1)
-	mc.wb = bytes.NewBuffer(make([]byte, 0, 4096))
-
+	mc.rb = NewBuffer(defaultReadBufSize, -1)
 	mc.reader = reader
 	mc.writer = writer
 	return mc
@@ -63,7 +64,6 @@ func NewMemcachedServerCodec(reader io.Reader, writer io.Writer) Codec {
 
 type MemcachedServerCodec struct {
 	rb     *Buffer
-	wb     *bytes.Buffer
 	reader io.Reader
 	writer io.Writer
 }
@@ -117,58 +117,52 @@ func (c *MemcachedServerCodec) Decode() (interface{}, error) {
 
 func (c *MemcachedServerCodec) Encode(body interface{}) error {
 	resp, _ := body.(*MemResponse)
+	//todo write error
+	var buf []byte
 
-	var buffer []byte
 	if "" != resp.Err {
 		LOG.Debug("[Encode] Op = %d, err = %s\n", resp.Op, resp.Err)
-		buffer = []byte(resp.Err)
+		buf = []byte(resp.Err)
 	} else if resp.Op == SET || resp.Op == ADD || resp.Op == REPLACE {
 		if resp.Result {
-			buffer = []byte("STORED\r\n")
+			buf = []byte("STORED\r\n")
 		} else {
-			buffer = []byte("NOT_STORED\r\n")
+			buf = []byte("NOT_STORED\r\n")
 		}
 	} else if resp.Op == DELETE {
 		if resp.Result {
-			buffer = []byte("DELETED\r\n")
+			buf = []byte("DELETED\r\n")
 		} else {
-			buffer = []byte("NOT_FOUND\r\n")
+			buf = []byte("NOT_FOUND\r\n")
 		}
 	} else if resp.Op == INCR || resp.Op == DECR {
+		buffer := bytes.NewBuffer(make([]byte, 0, 1024))
 		if resp.Result {
-			c.wb.WriteString(strconv.FormatInt(int64(resp.Value), 10))
-			c.wb.WriteString("\r\n")
-			buffer = c.wb.Bytes()
+			buffer.WriteString(strconv.FormatInt(int64(resp.Value), 10))
+			buffer.WriteString("\r\n")
 		} else {
-			buffer = []byte("NOT_FOUND\r\n")
+			buffer.Write([]byte("NOT_FOUND\r\n"))
 		}
+		buf = buffer.Bytes()
 	} else if resp.Op == GET {
 		if resp.Result {
-			c.wb.WriteString("VALUE ")
-			c.wb.WriteString(resp.Key)
-			c.wb.WriteString(" ")
-			c.wb.WriteString(strconv.FormatInt(int64(resp.Flags), 10))
-			c.wb.WriteString(" ")
-			c.wb.WriteString(strconv.FormatInt(int64(resp.Bytes), 10))
-			c.wb.WriteString("\r\n")
-			c.wb.Write(resp.Data)
-			c.wb.WriteString("\r\nEND\r\n")
-			buffer = c.wb.Bytes()
+			buffer := bytes.NewBuffer(make([]byte, 0, len(resp.Data)+1024))
+			buffer.WriteString("VALUE ")
+			buffer.WriteString(resp.Key)
+			buffer.WriteString(" ")
+			buffer.WriteString(strconv.FormatInt(int64(resp.Flags), 10))
+			buffer.WriteString(" ")
+			buffer.WriteString(strconv.FormatInt(int64(resp.Bytes), 10))
+			buffer.WriteString("\r\n")
+			buffer.Write(resp.Data)
+			buffer.WriteString("\r\nEND\r\n")
+			buf = buffer.Bytes()
 		} else {
-			buffer = []byte("END\r\n")
+			buf = []byte("END\r\n")
 		}
 	} else {
 		panic("unknow cmd")
-
 	}
-	// if len(buffer) == 0 {
-
-	// }
-	LOG.Debug("[Encode] '%v'\n", buffer)
-	_, err := c.writer.Write(buffer)
-	c.wb.Reset()
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := c.writer.Write(buf)
+	return err
 }

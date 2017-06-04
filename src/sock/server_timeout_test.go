@@ -8,10 +8,10 @@ import (
 )
 
 func Test_Server_Timeout(t *testing.T) {
-
+	option := Option{NoDely: true, KeepAlive: true, ReadBufferSize: 1024, WriteBufferSize: 1024}
 	address := "127.0.0.1:9999"
-	server := NewServer(address, LineCodecBuild)
-	server.SetConnectionCallBack(func(cn *Connection) {
+	server := NewServer(address, LineCodecBuild, option)
+	server.OnConnect(func(cn *Connection) {
 		if cn.IsClosed() {
 			t.Logf("connectin %s is closed.", cn.GetName())
 		} else {
