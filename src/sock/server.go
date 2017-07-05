@@ -1,7 +1,6 @@
 package sock
 
 import (
-	"bufio"
 	. "logger"
 	"net"
 	. "util"
@@ -12,7 +11,7 @@ type Server struct {
 	listener           *net.TCPListener
 	counter            uint32
 	codecBuild         CodecBuild
-	closeFlag          *AtomicInt
+	closeFlag          AtomicInt32
 	option             Option
 	connectionCallBack ConnectionCallBack
 	readCallBack       ReadCallBack
@@ -21,7 +20,7 @@ type Server struct {
 func NewServer(address string, codecBuild CodecBuild, option Option) *Server {
 	s := &Server{address: address}
 	s.counter = 0
-	s.closeFlag = NewAtomicInt(0)
+	s.closeFlag = 0
 	s.codecBuild = codecBuild
 	s.option = option
 	return s
@@ -62,8 +61,8 @@ func (s *Server) Start() {
 		tcpCon.SetKeepAlive(s.option.KeepAlive)
 		s.counter = s.counter + 1
 		index := s.counter
-		writer := bufio.NewWriterSize(tcpCon, s.option.WriteBufferSize)
-		con := NewConnection(tcpCon, writer, index, s.codecBuild(tcpCon, writer))
+		//writer := bufio.NewWriterSize(tcpCon, s.option.WriteBufferSize)
+		con := NewConnection(tcpCon, index, s.codecBuild(tcpCon, tcpCon))
 
 		con.setConnectionCallBack(s.connectionCallBack)
 		con.setReadCallBack(s.readCallBack)

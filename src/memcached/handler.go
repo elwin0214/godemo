@@ -1,9 +1,7 @@
 package memcached
 
 import (
-	//"bytes"
 	"errors"
-	//"fmt"
 	"io"
 	. "logger"
 	. "sock"
@@ -75,11 +73,10 @@ func handleStoreRequest(cmd string, buf *Buffer, reader io.Reader, tk *Tokenizer
 	req.Bytes = uint16(bytes)
 	LOG.Debug("buf.Len() = %d bytes = %d", buf.Len(), req.Bytes)
 	for { // zero length?
-
 		hitLen := buf.Len() >= int(req.Bytes)+2
 		pos := buf.FindCRLF(int(req.Bytes))
 		hitCrlf := pos > 0
-		if hitLen && hitLen {
+		if hitLen && hitCrlf {
 			if int(req.Bytes) < pos {
 				buf.Skip(pos + 2)
 				return &MemRequest{Err: "ERROR DATA\r\n"}, nil
@@ -105,11 +102,7 @@ func handleStoreRequest(cmd string, buf *Buffer, reader io.Reader, tk *Tokenizer
 
 	req.Data = make([]byte, req.Bytes, req.Bytes)
 	buf.Read(req.Data)
-
-	//crlf := make([]byte, 2, 2)
-	//buf.Read(crlf)
 	buf.Skip(2)
-
 	return req, nil
 }
 

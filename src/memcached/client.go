@@ -26,7 +26,7 @@ type Session struct {
 	sentQueue    chan Command
 	ctx          context.Context
 	cancel       func()
-	closeFlag    *util.AtomicInt
+	closeFlag    util.AtomicInt32
 }
 
 func newSession(conn net.Conn, writeBufferSize int) *Session {
@@ -36,7 +36,7 @@ func newSession(conn net.Conn, writeBufferSize int) *Session {
 	s.codec = NewMemcachedClientCodec(conn, s.writer)
 	s.sendingQueue = make(chan Command, 1024)
 	s.sentQueue = make(chan Command, 1024)
-	s.closeFlag = util.NewAtomicInt(0)
+	s.closeFlag = 0
 	ctx, cancel := context.WithCancel(context.Background())
 	s.ctx = ctx
 	s.cancel = cancel

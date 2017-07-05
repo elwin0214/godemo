@@ -6,15 +6,14 @@ import (
 	. "util"
 )
 
-func f(ai AtomicInt, i int32) {
+func f(ai AtomicInt32, i int32) {
 	old := ai.Get()
 	ai.Cas(old, i)
 }
 
 func Test_Cas(t *testing.T) {
-	ai := NewAtomicInt(0)
-	bi := ai
-
+	var ai AtomicInt32
+	ai = 0
 	var wg sync.WaitGroup
 	wg.Add(100)
 	for i := 0; i < 100; i++ {
@@ -35,16 +34,5 @@ func Test_Cas(t *testing.T) {
 	if 100 != ai.Get() {
 		t.Errorf("atomic int is %d\n", ai.Get())
 	}
-	if 100 != bi.Get() {
-		t.Errorf("atomic int is %d\n", bi.Get())
-	}
-	f(*bi, 2)
-	if 100 != bi.Get() {
-		t.Errorf("atomic int is %d\n", bi.Get())
-	}
-	ci := *bi
-	bi.Cas(100, 1)
-	if 100 != ci.Get() {
-		t.Errorf("atomic int is %d\n", ci.Get())
-	}
+
 }

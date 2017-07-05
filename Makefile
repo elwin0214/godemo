@@ -4,6 +4,7 @@ test:
 	go test src/logger/*_test.go -v
 	go test src/sock/*_test.go -v
 	go test src/memcached/*_test.go -v 
+	go test src/util/*_test.go -v 
 
 bench:
 	go test -bench . -run=^Benchmark src/logger/*_test.go -v

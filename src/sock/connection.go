@@ -12,7 +12,7 @@ type Connection struct {
 	//base
 	id        uint32
 	name      string
-	closeFlag *util.AtomicInt
+	closeFlag util.AtomicInt32
 
 	//io
 	tcpConn *net.TCPConn
@@ -27,27 +27,26 @@ type Connection struct {
 	readTimeout  time.Duration
 
 	//write
-	lastWriteTime                   time.Time
-	writeChan                       chan interface{}
-	readWriteChannelTimeout         time.Duration
-	readWriteChannelTimer           *time.Timer
-	readWriteChannelTimeoutCallBack ConnectionCallBack
+	//lastWriteTime                   time.Time
+	writeChan chan interface{}
+	//readWriteChannelTimeout         time.Duration
+	//readWriteChannelTimer           *time.Timer
+	//readWriteChannelTimeoutCallBack ConnectionCallBack
 }
 
-func NewConnection(tcpConn *net.TCPConn, flusher Flusher, index uint32, codec Codec) *Connection {
+func NewConnection(tcpConn *net.TCPConn, index uint32, codec Codec) *Connection {
 	con := new(Connection)
 	con.id = index
 	con.name = fmt.Sprintf("%s-%d", tcpConn.RemoteAddr().String(), index)
 
 	con.tcpConn = tcpConn
 	con.codec = codec
-	con.flusher = flusher
 
 	con.writeChan = make(chan interface{}, 1024)
-	con.closeFlag = util.NewAtomicInt(0)
-	con.readWriteChannelTimeout = time.Millisecond * 6000
-	con.readWriteChannelTimer = time.NewTimer(con.readWriteChannelTimeout)
-	con.lastWriteTime = time.Now()
+	con.closeFlag = 0
+	//con.readWriteChannelTimeout = time.Millisecond * 6000
+	//con.readWriteChannelTimer = time.NewTimer(con.readWriteChannelTimeout)
+	//con.lastWriteTime = time.Now()
 	return con
 }
 
@@ -64,10 +63,6 @@ func (con *Connection) GetName() string {
 	return con.name
 }
 
-func (con *Connection) setCoder(codec Codec) {
-	con.codec = codec
-}
-
 func (con *Connection) setConnectionCallBack(callback ConnectionCallBack) {
 	con.connectionCallBack = callback
 }
@@ -75,6 +70,8 @@ func (con *Connection) setConnectionCallBack(callback ConnectionCallBack) {
 func (con *Connection) setReadCallBack(callback ReadCallBack) {
 	con.readCallBack = callback
 }
+
+/*
 func (con *Connection) SetReadWriteChannelTimeout(timeoutMs time.Duration) {
 	con.readWriteChannelTimeout = time.Millisecond * timeoutMs
 	con.readWriteChannelTimer.Reset(con.readWriteChannelTimeout)
@@ -82,7 +79,7 @@ func (con *Connection) SetReadWriteChannelTimeout(timeoutMs time.Duration) {
 
 func (con *Connection) SetReadWriteChannelTimeoutCallBack(callback ConnectionCallBack) {
 	con.readWriteChannelTimeoutCallBack = callback
-}
+}*/
 
 func (con *Connection) IsClosed() bool {
 	return con.closeFlag.Get() == 1
@@ -92,7 +89,7 @@ func (con *Connection) Close() {
 	if con.closeFlag.Cas(0, 1) {
 		LOG.Info("[Close] goto close %s", con.GetName())
 		con.tcpConn.Close()
-		con.readWriteChannelTimer.Reset(0 * time.Millisecond)
+		//con.readWriteChannelTimer.Reset(0 * time.Millisecond)
 		if nil != con.connectionCallBack {
 			con.connectionCallBack(con)
 			close(con.writeChan)
@@ -137,21 +134,21 @@ func (con *Connection) writeLoop() {
 
 		//heart beat
 		select {
-		case <-con.readWriteChannelTimer.C:
-			if con.IsClosed() {
-				LOG.Info("[writeLoop] connection = %s, connection is closed, goroute exit.\n", con.GetName())
-				return
+		/*case <-con.readWriteChannelTimer.C:
+		if con.IsClosed() {
+			LOG.Info("[writeLoop] connection = %s, connection is closed, goroute exit.\n", con.GetName())
+			return
+		}
+		distance := time.Now().Sub(con.lastWriteTime)
+		LOG.Debug("[writeLoop] connection = %s, timeout, dis = %d", con.GetName(), distance)
+		if distance < (con.readWriteChannelTimeout) {
+			con.readWriteChannelTimer.Reset(con.readWriteChannelTimeout - distance)
+		} else {
+			if con.readWriteChannelTimeoutCallBack != nil {
+				con.readWriteChannelTimeoutCallBack(con)
 			}
-			distance := time.Now().Sub(con.lastWriteTime)
-			LOG.Debug("[writeLoop] connection = %s, timeout, dis = %d", con.GetName(), distance)
-			if distance < (con.readWriteChannelTimeout) {
-				con.readWriteChannelTimer.Reset(con.readWriteChannelTimeout - distance)
-			} else {
-				if con.readWriteChannelTimeoutCallBack != nil {
-					con.readWriteChannelTimeoutCallBack(con)
-				}
-				con.readWriteChannelTimer.Reset(con.readWriteChannelTimeout)
-			}
+			con.readWriteChannelTimer.Reset(con.readWriteChannelTimeout)
+		}*/
 
 		case msg, ok := <-con.writeChan:
 			if !ok {
@@ -168,14 +165,8 @@ func (con *Connection) writeLoop() {
 				LOG.Error("[writeLoop] connection = %s, error = %s, close conn, goroute exit.\n", con.GetName(), err.Error())
 				return
 			}
-			err = con.flusher.Flush()
-			if nil != err {
-				con.Close()
-				LOG.Error("[writeLoop] connection = %s, error = %s, close conn, goroute exit.\n", con.GetName(), err.Error())
-				return
-			}
-			con.lastWriteTime = time.Now()
-			con.readWriteChannelTimer.Reset(con.readWriteChannelTimeout)
+			//con.lastWriteTime = time.Now()
+			//con.readWriteChannelTimer.Reset(con.readWriteChannelTimeout)
 		}
 	}
 }

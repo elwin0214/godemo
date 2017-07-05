@@ -1,7 +1,6 @@
 package sock
 
 import (
-	"bufio"
 	. "logger"
 	"net"
 )
@@ -43,8 +42,8 @@ func (c *Client) Connect() error {
 	c.counter = c.counter + 1
 	index := c.counter
 
-	writer := bufio.NewWriterSize(tcpCon, c.option.WriteBufferSize)
-	con := NewConnection(tcpCon, writer, index, c.codecBuild(tcpCon, writer))
+	//writer := bufio.NewWriterSize(tcpCon, c.option.WriteBufferSize)
+	con := NewConnection(tcpCon, index, c.codecBuild(tcpCon, tcpCon))
 	con.setConnectionCallBack(c.connectionCallBack)
 	con.setReadCallBack(c.readCallBack)
 	con.establish()
