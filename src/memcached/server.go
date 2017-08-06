@@ -7,17 +7,18 @@ import (
 )
 
 type MemcachedServer struct {
-	server      *Server
-	storage     *Storage
-	connections map[string]*Connection
-	mutex       sync.Mutex
+	server         *Server
+	storage        *Storage
+	readBufferSize int
+	connections    map[string]*Connection
+	mutex          sync.Mutex
 }
 
-func NewMemcachedServer(address string, codecBuild CodecBuild) *MemcachedServer {
+func NewMemcachedServer(address string, readBufferSize int) *MemcachedServer {
 	s := new(MemcachedServer)
-	option := Option{NoDely: true, KeepAlive: true, ReadBufferSize: 32 * 1024, WriteBufferSize: 32 * 1024}
-	s.server = NewServer(address, codecBuild, option)
+	s.server = NewServer(address)
 	s.storage = NewStorage()
+	s.readBufferSize = readBufferSize
 	s.connections = make(map[string]*Connection, 1024)
 	return s
 }
@@ -42,14 +43,25 @@ func (s *MemcachedServer) onConnect(con *Connection) {
 	if con.IsClosed() {
 		delete(s.connections, con.GetName())
 	} else {
+		codec := NewMemcachedServerCodec(con.GetTcpConn(), con.GetTcpConn(), s.readBufferSize)
+		con.SetCodec(codec)
 		s.connections[con.GetName()] = con
 	}
 }
 
 func (s *MemcachedServer) Close() {
+
 	s.server.Close()
 	s.storage.exit()
+
+	s.mutex.Lock()
+	conns := make([]*Connection, 0, len(s.connections))
 	for _, con := range s.connections {
+		conns = append(conns, con)
+	}
+	s.mutex.Unlock()
+
+	for _, con := range conns {
 		con.Close()
 	}
 }

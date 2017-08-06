@@ -3,14 +3,18 @@ package memcached
 import (
 	. "logger"
 	. "memcached"
+	"net/http"
+	_ "net/http/pprof"
 	"testing"
 )
 
 func Test_Client_SetGet(t *testing.T) {
 	LOG.SetLevel(0)
-
+	go func() {
+		http.ListenAndServe("localhost:6060", nil)
+	}()
 	address := "127.0.0.1:9999"
-	s := NewMemcachedServer(address, NewMemcachedServerCodec)
+	s := NewMemcachedServer(address, 32*1024)
 	ch := make(chan bool, 1)
 	go func() {
 		s.Listen()

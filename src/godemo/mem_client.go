@@ -15,17 +15,16 @@ import (
 
 func main() {
 	address := flag.String("a", "127.0.0.1:8080", "server listen port")
-	conns := flag.Int("cn", 1, "the number of tcp connection")
-	vl := flag.Int("vl", 10, "the length of value")
-	clients := flag.Int("cs", 10, "the number of clients")
-	requests := flag.Int("reqs", 100, "the number of requests")
+	conns := flag.Int("t", 1, "the number of tcp connection")
+	vl := flag.Int("v", 10, "the length of value")
+	clients := flag.Int("c", 10, "the number of clients")
+	requests := flag.Int("r", 100, "the number of requests")
 	level := flag.Int("l", 2, "log level")
 	flag.Parse()
 
 	LOG.SetHandler(NewStreamHandler(os.Stdout))
 	LOG.SetLevel(*level)
 	LOG.Warn("maxprocs = %d\n", runtime.GOMAXPROCS(0))
-	LOG.Warn("cpuprof = %s\n", *cpuprof)
 
 	cf, _ := os.Create("cpu.out")
 	pprof.StartCPUProfile(cf)
@@ -49,7 +48,7 @@ func main() {
 			LOG.Info("start %d\n", index)
 
 			defer wg.Done()
-			for k := 0; k < *requests; k++ {
+			for k := 0; k < *requests / *clients; k++ {
 				key := fmt.Sprintf("%d_%d", index, k)
 				s := time.Now()
 				r, err := c.Set(key, value)
@@ -64,7 +63,9 @@ func main() {
 	}
 	wg.Wait()
 	end := time.Now()
-	LOG.Warn("[main] client = %d requests = %d time = %dms\n", *clients, *requests, end.Sub(start)/1000/1000)
+	var qps float64
+	qps = float64(*requests) * 1.0 * 1000 * 1000 / (float64(end.Sub(start)*1.0) / 1000)
+	LOG.Warn("[main] clients = %d reqs = %d time = %dms qps = %f\n", *clients, *requests, end.Sub(start)/1000/1000, qps)
 	time.Sleep(1000 * time.Millisecond)
 
 	stat.Close()

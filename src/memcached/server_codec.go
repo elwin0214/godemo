@@ -20,9 +20,6 @@ const (
 	INCR    = Code(6)
 	DECR    = Code(7)
 )
-const (
-	defaultReadBufSize = 32 * 1024
-)
 
 const (
 	MAX_KEY_LENGTH   = int(1<<8 - 1)
@@ -54,9 +51,9 @@ var cmds = map[Code][]byte{
 	DECR:    []byte("decr"),
 }
 
-func NewMemcachedServerCodec(reader io.Reader, writer io.Writer) Codec {
+func NewMemcachedServerCodec(reader io.Reader, writer io.Writer, readBufferSize int) Codec {
 	mc := new(MemcachedServerCodec)
-	mc.rb = NewBuffer(defaultReadBufSize, -1)
+	mc.rb = NewBuffer(readBufferSize, -1)
 	mc.reader = reader
 	mc.writer = writer
 	return mc
@@ -73,7 +70,7 @@ func (c *MemcachedServerCodec) Decode() (interface{}, error) {
 	pos = c.rb.FindCRLF(from)
 	for pos < 0 { // need more data
 		n, err := c.rb.ReadFrom(c.reader)
-		LOG.Debug("pos = %d, n = %d, err = %v", pos, n, err)
+		LOG.Debug("[Decode] pos = %d, n = %d, err = %v", pos, n, err)
 
 		if n > 0 {
 			pos = c.rb.FindCRLF(from)

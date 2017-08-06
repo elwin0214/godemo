@@ -9,7 +9,7 @@ import (
 func Test_Store(t *testing.T) {
 	line := "set"
 	reader := strings.NewReader(line)
-	coder := NewMemcachedServerCodec(reader, nil)
+	coder := NewMemcachedServerCodec(reader, nil, 1024)
 	_, err := coder.Decode()
 	if nil == err {
 		t.Errorf("can not read EOF for '%s'\n", line)
@@ -19,7 +19,7 @@ func Test_Store(t *testing.T) {
 func Test_Set(t *testing.T) {
 	line := "set a 0 1 1\r\na\r\n"
 	reader := strings.NewReader(line)
-	coder := NewMemcachedServerCodec(reader, nil)
+	coder := NewMemcachedServerCodec(reader, nil, 1024)
 	req, err := coder.Decode()
 	if nil != err {
 		t.Errorf("%s for '%s'\n", err.Error(), line)
@@ -37,7 +37,7 @@ func Test_Set(t *testing.T) {
 func Test_Set_EOF(t *testing.T) {
 	line := "set a 0 1 1\r\na\r"
 	reader := strings.NewReader(line)
-	coder := NewMemcachedServerCodec(reader, nil)
+	coder := NewMemcachedServerCodec(reader, nil, 1024)
 	_, err := coder.Decode()
 	if nil == err {
 		t.Errorf("can not get EOF\n")
@@ -47,7 +47,7 @@ func Test_Set_EOF(t *testing.T) {
 func Test_Get(t *testing.T) {
 	line := "get a\r\n"
 	reader := strings.NewReader(line)
-	coder := NewMemcachedServerCodec(reader, nil)
+	coder := NewMemcachedServerCodec(reader, nil, 1024)
 	req, err := coder.Decode()
 	if nil != err {
 		t.Errorf("%s\n", err.Error())
@@ -61,7 +61,7 @@ func Test_Get(t *testing.T) {
 func Test_Delete(t *testing.T) {
 	line := "delete abc\r\n"
 	reader := strings.NewReader(line)
-	coder := NewMemcachedServerCodec(reader, nil)
+	coder := NewMemcachedServerCodec(reader, nil, 1024)
 	req, err := coder.Decode()
 	if nil != err {
 		t.Errorf("%s\n", err.Error())
@@ -74,7 +74,7 @@ func Test_Delete(t *testing.T) {
 func Test_Incr(t *testing.T) {
 	line := "incr a 20\r\n"
 	reader := strings.NewReader(line)
-	coder := NewMemcachedServerCodec(reader, nil)
+	coder := NewMemcachedServerCodec(reader, nil, 1024)
 	req, err := coder.Decode()
 	if nil != err {
 		t.Errorf("%s\n", err.Error())
@@ -87,7 +87,7 @@ func Test_Incr(t *testing.T) {
 func Test_Multi(t *testing.T) {
 	line := "incr a 20\r\nincr a 20\r\n"
 	reader := strings.NewReader(line)
-	coder := NewMemcachedServerCodec(reader, nil)
+	coder := NewMemcachedServerCodec(reader, nil, 1024)
 	for i := 0; i < 2; i++ {
 		req, err := coder.Decode()
 		if nil != err {

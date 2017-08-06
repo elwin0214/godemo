@@ -34,13 +34,13 @@ type Connection struct {
 	//readWriteChannelTimeoutCallBack ConnectionCallBack
 }
 
-func NewConnection(tcpConn *net.TCPConn, index uint32, codec Codec) *Connection {
+func NewConnection(tcpConn *net.TCPConn, index uint32) *Connection {
 	con := new(Connection)
 	con.id = index
 	con.name = fmt.Sprintf("%s-%d", tcpConn.RemoteAddr().String(), index)
 
 	con.tcpConn = tcpConn
-	con.codec = codec
+	//con.codec = codec
 
 	con.writeChan = make(chan interface{}, 1024)
 	con.closeFlag = 0
@@ -63,12 +63,28 @@ func (con *Connection) GetName() string {
 	return con.name
 }
 
+func (con *Connection) SetNoDelay(flag bool) {
+	con.tcpConn.SetNoDelay(flag)
+}
+
+func (con *Connection) SetKeepAlive(flag bool) {
+	con.tcpConn.SetKeepAlive(flag)
+}
+
+func (con *Connection) SetCodec(codec Codec) {
+	con.codec = codec
+}
+
 func (con *Connection) setConnectionCallBack(callback ConnectionCallBack) {
 	con.connectionCallBack = callback
 }
 
 func (con *Connection) setReadCallBack(callback ReadCallBack) {
 	con.readCallBack = callback
+}
+
+func (con *Connection) GetTcpConn() *net.TCPConn {
+	return con.tcpConn
 }
 
 /*
@@ -87,13 +103,17 @@ func (con *Connection) IsClosed() bool {
 
 func (con *Connection) Close() {
 	if con.closeFlag.Cas(0, 1) {
-		LOG.Info("[Close] goto close %s", con.GetName())
+		LOG.Info("[Close] goto close conn = %s", con.GetName())
 		con.tcpConn.Close()
 		//con.readWriteChannelTimer.Reset(0 * time.Millisecond)
 		if nil != con.connectionCallBack {
 			con.connectionCallBack(con)
-			close(con.writeChan)
 		}
+		LOG.Info("[Close] goto close conn = %s  22", con.GetName())
+
+		close(con.writeChan)
+	} else {
+		LOG.Debug("[Close] close conn = %s fail for cas ", con.GetName())
 	}
 }
 
@@ -160,6 +180,7 @@ func (con *Connection) writeLoop() {
 				return
 			}
 			err := con.codec.Encode(msg)
+			LOG.Debug("[writeLoop] connection = %s write msg", con.GetName())
 			if nil != err {
 				con.Close()
 				LOG.Error("[writeLoop] connection = %s, error = %s, close conn, goroute exit.\n", con.GetName(), err.Error())

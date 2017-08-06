@@ -21,7 +21,7 @@ func main() {
 	LOG.SetHandler(NewStreamHandler(os.Stdout))
 	LOG.SetLevel(*level)
 	LOG.Warn("maxprocs = %d\n", runtime.GOMAXPROCS(0))
-	s := NewMemcachedServer(*address, NewMemcachedServerCodec)
+	s := NewMemcachedServer(*address, 4*1024)
 	RegisterStopSignal(func() {
 		pprof.StopCPUProfile()
 		LOG.Info("close")

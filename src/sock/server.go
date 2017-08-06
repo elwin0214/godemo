@@ -3,26 +3,27 @@ package sock
 import (
 	. "logger"
 	"net"
+	"time"
 	. "util"
 )
 
 type Server struct {
-	address            string
-	listener           *net.TCPListener
-	counter            uint32
-	codecBuild         CodecBuild
-	closeFlag          AtomicInt32
-	option             Option
+	address  string
+	listener *net.TCPListener
+	counter  uint32
+	//codecBuild         CodecBuild
+	closeFlag AtomicInt32
+	//option             Option
 	connectionCallBack ConnectionCallBack
 	readCallBack       ReadCallBack
 }
 
-func NewServer(address string, codecBuild CodecBuild, option Option) *Server {
+func NewServer(address string /*, codecBuild CodecBuild, option Option*/) *Server {
 	s := &Server{address: address}
 	s.counter = 0
 	s.closeFlag = 0
-	s.codecBuild = codecBuild
-	s.option = option
+	//s.codecBuild = codecBuild
+	//s.option = option
 	return s
 }
 
@@ -51,19 +52,20 @@ func (s *Server) Start() {
 		if s.closeFlag.Get() == 1 {
 			return
 		}
+		t := time.Now()
+		t = t.Add(time.Millisecond * 5000)
+		s.listener.SetDeadline(t)
 		cn, acceptErr := s.listener.Accept()
 		if acceptErr != nil {
-			LOG.Error("[Start] accept error = %s\n", acceptErr.Error())
+			LOG.Info("[Start] accept error = %s\n", acceptErr.Error())
 			continue
 		}
 		tcpCon, _ := cn.(*net.TCPConn)
-		tcpCon.SetNoDelay(s.option.NoDely)
-		tcpCon.SetKeepAlive(s.option.KeepAlive)
+		tcpCon.SetNoDelay(true)
+		tcpCon.SetKeepAlive(true)
 		s.counter = s.counter + 1
 		index := s.counter
-		//writer := bufio.NewWriterSize(tcpCon, s.option.WriteBufferSize)
-		con := NewConnection(tcpCon, index, s.codecBuild(tcpCon, tcpCon))
-
+		con := NewConnection(tcpCon, index)
 		con.setConnectionCallBack(s.connectionCallBack)
 		con.setReadCallBack(s.readCallBack)
 		con.establish()

@@ -14,12 +14,12 @@ type Client struct {
 	readCallBack       ReadCallBack
 }
 
-func NewClient(address string, codecBuild CodecBuild, option Option) *Client {
+func NewClient(address string /*, codecBuild CodecBuild, option Option*/) *Client {
 	client := new(Client)
 	client.address = address
 	client.counter = 0
-	client.codecBuild = codecBuild
-	client.option = option
+	//client.codecBuild = codecBuild
+	//client.option = option
 	return client
 }
 
@@ -37,13 +37,13 @@ func (c *Client) Connect() error {
 		return err
 	}
 	tcpCon, _ := cn.(*net.TCPConn)
-	tcpCon.SetNoDelay(c.option.NoDely)
-	tcpCon.SetKeepAlive(c.option.KeepAlive)
+	//tcpCon.SetNoDelay(c.option.NoDely)
+	//tcpCon.SetKeepAlive(c.option.KeepAlive)
 	c.counter = c.counter + 1
 	index := c.counter
 
 	//writer := bufio.NewWriterSize(tcpCon, c.option.WriteBufferSize)
-	con := NewConnection(tcpCon, index, c.codecBuild(tcpCon, tcpCon))
+	con := NewConnection(tcpCon, index)
 	con.setConnectionCallBack(c.connectionCallBack)
 	con.setReadCallBack(c.readCallBack)
 	con.establish()

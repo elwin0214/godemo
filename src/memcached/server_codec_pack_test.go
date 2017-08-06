@@ -59,7 +59,7 @@ func Test_Pack(t *testing.T) {
 	reader := newStreamReader()
 	line := "set a 0 1 1\r\na\r\nset a 0 1 "
 	reader.append([]byte(line)) //1\r\na\r\n
-	coder := NewMemcachedServerCodec(reader, nil)
+	coder := NewMemcachedServerCodec(reader, nil, 1024)
 	req, err := coder.Decode()
 	if nil != err {
 		t.Errorf("%s for '%s'\n", err.Error(), line)
