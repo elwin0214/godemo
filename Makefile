@@ -1,24 +1,21 @@
-
 test:
-	go test src/demo/*_test.go -v
-	go test src/logger/*_test.go -v
-	go test src/sock/*_test.go -v
-	go test src/memcached/*_test.go -v 
-	go test src/util/*_test.go -v 
+	go test github.com/elwin0214/gomemcached/demo -v
+	go test github.com/elwin0214/gomemcached/logger -v
+	go test github.com/elwin0214/gomemcached/sock -v
+	go test github.com/elwin0214/gomemcached/memcached -v
+	go test github.com/elwin0214/gomemcached/util -v
 
 bench:
-	go test -bench . -run=^Benchmark src/logger/*_test.go -v
-	go test -bench . -run=^Benchmark src/sock/*_test.go -v
-	go test -bench . -run=^Benchmark src/memcached/*_test.go -v 
+	go test -bench . -run=^Benchmark github.com/elwin0214/gomemcached/logger -v
+	go test -bench . -run=^Benchmark github.com/elwin0214/gomemcached/sock -v
+	go test -bench . -run=^Benchmark github.com/elwin0214/gomemcached/memcached -v
 
-map_bench:
-	go test src/logger/demo/bench_map_test.go
-	
-install:
-	go install src/godemo/mem_client.go
-	go install src/godemo/mem_server.go
-	go install src/godemo/raw_bench.go
+build:
+	go build -o main/mem_client main/mem_client.go
+	go build -o main/mem_server main/mem_server.go
+	go build -o main/raw_bench main/raw_bench.go
 
 clean:
-	rm -rf ./bin
-	rm -rf ./pkg
+	rm main/mem_client
+	rm main/mem_server
+	rm main/raw_bench
