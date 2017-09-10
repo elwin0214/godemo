@@ -13,9 +13,13 @@ bench:
 build:
 	go build -o main/mem_client main/mem_client.go
 	go build -o main/mem_server main/mem_server.go
+	go build -o main/echo_client main/echo_client.go
+	go build -o main/echo_server main/echo_server.go
 	go build -o main/raw_bench main/raw_bench.go
 
 clean:
 	rm main/mem_client
 	rm main/mem_server
 	rm main/raw_bench
+	rm main/echo_client
+	rm main/echo_server
