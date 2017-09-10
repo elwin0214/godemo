@@ -8,23 +8,28 @@ import (
 )
 
 type Server struct {
-	address            string
-	listener           *net.TCPListener
-	counter            uint32
-	closeFlag          AtomicInt32
-	connectionCallBack ConnectionCallBack
-	readCallBack       ReadCallBack
+	address         string
+	listener        *net.TCPListener
+	counter         uint32
+	closed          AtomicBool
+	connectCallBack ConnectionCallBack
+	closeCallBack   ConnectionCallBack
+	readCallBack    ReadCallBack
 }
 
 func NewServer(address string) *Server {
 	s := &Server{address: address}
 	s.counter = 0
-	s.closeFlag = 0
+	s.closed = NewAtomicBool(true)
 	return s
 }
 
 func (s *Server) OnConnect(callback ConnectionCallBack) {
-	s.connectionCallBack = callback
+	s.connectCallBack = callback
+}
+
+func (s *Server) onClose(callback ConnectionCallBack) {
+	s.closeCallBack = callback
 }
 
 func (s *Server) OnRead(callback ReadCallBack) {
@@ -32,6 +37,7 @@ func (s *Server) OnRead(callback ReadCallBack) {
 }
 
 func (s *Server) Listen() error {
+
 	ln, err := net.Listen("tcp", s.address)
 	if err != nil {
 		glog.Errorf("[Start] error = %s\n", err.Error())
@@ -40,12 +46,14 @@ func (s *Server) Listen() error {
 
 	glog.Infof("[Listen] address = %s\n", s.address)
 	s.listener, _ = ln.(*net.TCPListener)
+	s.closed.Set(false)
 	return nil
 }
 
 func (s *Server) Start() {
+
 	for {
-		if s.closeFlag.Get() == 1 {
+		if s.closed.Get() {
 			return
 		}
 		t := time.Now()
@@ -53,7 +61,7 @@ func (s *Server) Start() {
 		s.listener.SetDeadline(t)
 		cn, acceptErr := s.listener.Accept()
 		if acceptErr != nil {
-			glog.Infof("[Start] accept error = %s\n", acceptErr.Error())
+			//glog.Infof("[Start] accept error = %s\n", acceptErr.Error())
 			continue
 		}
 		tcpCon, _ := cn.(*net.TCPConn)
@@ -62,7 +70,8 @@ func (s *Server) Start() {
 		s.counter = s.counter + 1
 		index := s.counter
 		con := NewConnection(tcpCon, index)
-		con.setConnectionCallBack(s.connectionCallBack)
+		con.setConnectCallBack(s.connectCallBack)
+		con.setCloseCallBack(s.closeCallBack)
 		con.setReadCallBack(s.readCallBack)
 		con.establish()
 
@@ -73,7 +82,7 @@ func (s *Server) Start() {
 }
 
 func (s *Server) Close() {
-	if s.closeFlag.Cas(0, 1) {
+	if s.closed.Cas(false, true) {
 		glog.Infof("[Close] server closed")
 		s.listener.Close()
 	}

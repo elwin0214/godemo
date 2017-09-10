@@ -6,12 +6,13 @@ import (
 )
 
 type Client struct {
-	address            string
-	counter            uint32
-	codecBuild         CodecBuild
-	option             Option
-	connectionCallBack ConnectionCallBack
-	readCallBack       ReadCallBack
+	address         string
+	counter         uint32
+	codecBuild      CodecBuild
+	option          Option
+	connectCallBack ConnectionCallBack
+	closeCallBack   ConnectionCallBack
+	readCallBack    ReadCallBack
 }
 
 func NewClient(address string) *Client {
@@ -22,9 +23,12 @@ func NewClient(address string) *Client {
 }
 
 func (c *Client) OnConnect(callback ConnectionCallBack) {
-	c.connectionCallBack = callback
+	c.connectCallBack = callback
 }
 
+func (c *Client) onClose(callback ConnectionCallBack) {
+	c.closeCallBack = callback
+}
 func (c *Client) OnRead(callback ReadCallBack) {
 	c.readCallBack = callback
 }
@@ -38,7 +42,8 @@ func (c *Client) Connect() error {
 	c.counter = c.counter + 1
 	index := c.counter
 	con := NewConnection(tcpCon, index)
-	con.setConnectionCallBack(c.connectionCallBack)
+	con.setConnectCallBack(c.connectCallBack)
+	con.setCloseCallBack(c.closeCallBack)
 	con.setReadCallBack(c.readCallBack)
 	con.establish()
 	go con.readLoop()

@@ -54,12 +54,12 @@ func (s *MemcachedServer) Close() {
 	s.storage.exit()
 
 	s.mutex.Lock()
+	//copy the connections to avoid dead lock
 	conns := make([]*Connection, 0, len(s.connections))
 	for _, con := range s.connections {
 		conns = append(conns, con)
 	}
 	s.mutex.Unlock()
-
 	for _, con := range conns {
 		con.Close()
 	}

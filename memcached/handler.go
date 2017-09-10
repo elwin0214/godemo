@@ -166,3 +166,7 @@ func handleCounterRequest(cmd string, buf *Buffer, reader io.Reader, tk *Tokeniz
 	req.Value = uint32(value)
 	return req, nil
 }
+
+func handleVersionRequest(cmd string, buf *Buffer, reader io.Reader, tk *Tokenizer) (*MemRequest, error) {
+	return &MemRequest{Err: "V1.0"}, nil
+}

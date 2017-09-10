@@ -15,7 +15,6 @@ import (
 
 func main() {
 	address := flag.String("a", "127.0.0.1:8080", "server listen port")
-	conns := flag.Int("t", 1, "the number of tcp connection")
 	vl := flag.Int("vl", 10, "the length of value")
 	clients := flag.Int("c", 10, "the number of clients")
 	requests := flag.Int("r", 100, "the number of requests")
@@ -32,7 +31,7 @@ func main() {
 	}
 	value := string(buf)
 	glog.Infof("value = %s\n", value)
-	c := NewMemcachedClient(*address, *conns, 5000)
+	c := NewMemcachedClient([]*AddressInfo{&AddressInfo{Address:*address,Weight:1}})
 	c.Start()
 	var wg sync.WaitGroup
 	wg.Add(*clients)

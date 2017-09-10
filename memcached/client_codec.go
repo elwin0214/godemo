@@ -34,7 +34,8 @@ type MemcachedClientCodec struct {
 func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 	var from, pos int = -1, -1
 	pos = c.rb.FindCRLF(from)
-	for pos < 0 { // need more data
+	for pos < 0 {
+		// need more data
 		n, err := c.rb.ReadFrom(c.reader)
 		if n > 0 {
 			pos = c.rb.FindCRLF(from)
@@ -105,7 +106,8 @@ func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 		}
 		resp.Bytes = uint16(bytes)
 		//LOG.Info("buf.Len() = %d bytes = %d", buf.Len(), resp.Bytes)
-		for !(c.rb.Len() >= int(resp.Bytes)+2 && c.rb.FindCRLF(int(resp.Bytes)) > 0) { // zero length?
+		for !(c.rb.Len() >= int(resp.Bytes)+2 && c.rb.FindCRLF(int(resp.Bytes)) > 0) {
+			// zero length?
 			n, err := c.rb.ReadFrom(c.reader)
 			if n > 0 {
 				continue
@@ -124,7 +126,8 @@ func (c *MemcachedClientCodec) Decode() (interface{}, error) {
 		c.rb.Read(resp.Data)
 		c.rb.Skip(2)
 		pos = c.rb.FindCRLF(0)
-		for pos < 0 { // need more data
+		for pos < 0 {
+			// need more data
 			n, err := c.rb.ReadFrom(c.reader)
 			if n > 0 {
 				pos = c.rb.FindCRLF(0)
@@ -219,6 +222,13 @@ func (c *MemcachedClientCodec) Encode(req interface{}) error {
 		buffer.WriteString(r.Key)
 		buffer.WriteString(" ")
 		buffer.WriteString(strconv.FormatInt(int64(r.Value), 10))
+		buffer.WriteString("\r\n")
+		buf = buffer.Bytes()
+	}
+
+	if r.Op == VER {
+		buffer := bytes.NewBuffer(make([]byte, 0, 16))
+		buffer.Write(cmds[r.Op])
 		buffer.WriteString("\r\n")
 		buf = buffer.Bytes()
 	}

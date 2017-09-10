@@ -19,6 +19,8 @@ const (
 	DELETE  = Code(5)
 	INCR    = Code(6)
 	DECR    = Code(7)
+	VER     = Code(8)
+	QUIT    = Code(9)
 )
 
 const (
@@ -40,6 +42,7 @@ var handlers = map[string]handler{
 	"get":     handleGetRequest,
 	"incr":    handleCounterRequest,
 	"decr":    handleCounterRequest,
+	"ver":     handleVersionRequest,
 }
 var cmds = map[Code][]byte{
 	SET:     []byte("set"),
@@ -49,6 +52,7 @@ var cmds = map[Code][]byte{
 	DELETE:  []byte("delete"),
 	INCR:    []byte("incr"),
 	DECR:    []byte("decr"),
+	VER:     []byte("version"),
 }
 
 func NewMemcachedServerCodec(reader io.Reader, writer io.Writer, readBufferSize int) Codec {
@@ -68,7 +72,8 @@ type MemcachedServerCodec struct {
 func (c *MemcachedServerCodec) Decode() (interface{}, error) {
 	var from, pos int = -1, -1
 	pos = c.rb.FindCRLF(from)
-	for pos < 0 { // need more data
+	for pos < 0 {
+		// need more data
 		n, err := c.rb.ReadFrom(c.reader)
 		glog.Infof("[Decode] pos = %d, n = %d, err = %v", pos, n, err)
 
@@ -99,7 +104,7 @@ func (c *MemcachedServerCodec) Decode() (interface{}, error) {
 		return &MemRequest{Err: "ERROR OP\r\n"}, nil
 	}
 	cmd := string(word)
-	if cmd == "exit" {
+	if cmd == "quit" {
 		return nil, errors.New("Connection goto close")
 	}
 	var h handler

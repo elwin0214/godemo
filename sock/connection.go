@@ -10,16 +10,17 @@ import (
 
 type Connection struct {
 	//base
-	id        uint32
-	name      string
-	closeFlag AtomicInt32
+	id     uint32
+	name   string
+	closed AtomicBool
 	//io
 	tcpConn *net.TCPConn
 	codec   Codec
 	flusher Flusher
 
 	//callback
-	connectionCallBack ConnectionCallBack
+	connectCallBack ConnectionCallBack
+	closeCallBack   ConnectionCallBack
 
 	//read
 	readCallBack ReadCallBack
@@ -34,15 +35,23 @@ func NewConnection(tcpConn *net.TCPConn, index uint32) *Connection {
 	con.name = fmt.Sprintf("%s-%d", tcpConn.RemoteAddr().String(), index)
 	con.tcpConn = tcpConn
 	con.writeChan = make(chan interface{}, 1024)
-	con.closeFlag = 0
+	con.closed = NewAtomicBool(true)
 	return con
 }
 
 func (con *Connection) establish() {
-	if nil != con.connectionCallBack {
-		con.connectionCallBack(con)
+	con.closed.Set(false)
+	if nil != con.connectCallBack {
+		con.connectCallBack(con)
 	}
 }
+
+func (con *Connection) destroy() {
+	if nil != con.closeCallBack {
+		con.closeCallBack(con)
+	}
+}
+
 func (con *Connection) GetId() uint32 {
 	return con.id
 }
@@ -63,8 +72,12 @@ func (con *Connection) SetCodec(codec Codec) {
 	con.codec = codec
 }
 
-func (con *Connection) setConnectionCallBack(callback ConnectionCallBack) {
-	con.connectionCallBack = callback
+func (con *Connection) setConnectCallBack(callback ConnectionCallBack) {
+	con.connectCallBack = callback
+}
+
+func (con *Connection) setCloseCallBack(callback ConnectionCallBack) {
+	con.closeCallBack = callback
 }
 
 func (con *Connection) setReadCallBack(callback ReadCallBack) {
@@ -76,17 +89,14 @@ func (con *Connection) GetTcpConn() *net.TCPConn {
 }
 
 func (con *Connection) IsClosed() bool {
-	return con.closeFlag.Get() == 1
+	return con.closed.Get()
 }
 
 func (con *Connection) Close() {
-	if con.closeFlag.Cas(0, 1) {
+	if con.closed.Cas(false, true) {
 		glog.Warningf("[Close] conn = %s\n", con.GetName())
+		con.destroy()
 		con.tcpConn.Close()
-		if nil != con.connectionCallBack {
-			con.connectionCallBack(con)
-		}
-
 		close(con.writeChan)
 	} else {
 		glog.Warningf("[Close] conn = %s closed\n", con.GetName())

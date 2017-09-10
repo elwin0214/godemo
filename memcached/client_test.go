@@ -4,7 +4,11 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"testing"
+	"time"
+	"github.com/golang/glog"
 )
+
+
 
 func Test_Client_SetGet(t *testing.T) {
 	go func() {
@@ -19,14 +23,14 @@ func Test_Client_SetGet(t *testing.T) {
 		s.Start()
 	}()
 	<-ch
-	c := NewMemcachedClient(address, 1, 5000)
+	c := NewMemcachedClient([]*AddressInfo{&AddressInfo{Address:"127.0.0.1:9999",Weight:1}})
 	c.Start()
-
+	time.Sleep(2000*time.Millisecond)
 	key := "k1"
 	value := "12"
-	b, _ := c.Set(key, value)
+	b, e := c.Set(key, value)
 	if !b {
-		t.Errorf("set '%s' fail\n", key)
+		t.Errorf("set '%s' fail error is '%s'\n", key, e.Error())
 	}
 	str, _ := c.Get(key)
 	if str != value {
@@ -39,5 +43,7 @@ func Test_Client_SetGet(t *testing.T) {
 		t.Errorf("value is %d\n", i)
 	}
 	c.Close()
+	glog.Info("close")
+	time.Sleep(1*time.Second)
 	s.Close()
 }

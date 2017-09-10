@@ -24,13 +24,11 @@ func Test_Server(t *testing.T) {
 	address := "0.0.0.0:9991"
 	server := NewServer(address)
 	server.OnConnect(func(cn *Connection) {
-		if !cn.IsClosed() {
-			codec := LineCodecBuild(cn.GetTcpConn(), cn.GetTcpConn())
-			cn.SetCodec(codec)
-			for i := 0; i < 100; i++ {
-				s := strconv.Itoa(i)
-				cn.Send([]byte(s))
-			}
+		codec := LineCodecBuild(cn.GetTcpConn(), cn.GetTcpConn())
+		cn.SetCodec(codec)
+		for i := 0; i < 100; i++ {
+			s := strconv.Itoa(i)
+			cn.Send([]byte(s))
 		}
 	})
 	server.OnRead(func(cn *Connection, msg *Message) {
@@ -50,10 +48,8 @@ func Test_Server(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(100)
 	client.OnConnect(func(cn *Connection) {
-		if !cn.IsClosed() {
-			codec := LineCodecBuild(cn.GetTcpConn(), cn.GetTcpConn())
-			cn.SetCodec(codec)
-		}
+		codec := LineCodecBuild(cn.GetTcpConn(), cn.GetTcpConn())
+		cn.SetCodec(codec)
 	})
 	client.OnRead(func(cn *Connection, msg *Message) {
 		wg.Done()
