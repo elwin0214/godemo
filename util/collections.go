@@ -19,13 +19,16 @@ func (list *List) Clone() (List, int) {
 	return tmpList, n
 }
 
-func (list *List) Remove(el interface{}, fun CompareFunc) {
-	var index int
+func (list *List) Remove(el interface{}, fun CompareFunc) (index int){
+	index = -1
 	for i, element := range *list {
 		if fun(element, el) {
 			index = i
 			break
 		}
+	}
+	if index == -1 {
+		return
 	}
 	if index == len(*list) - 1 {
 		*list = (*list)[0:index]
@@ -34,6 +37,7 @@ func (list *List) Remove(el interface{}, fun CompareFunc) {
 	backList := (*list)[index + 1 : len(*list)]
 	*list = (*list)[0:index]
 	*list = append(*list, backList...)
+	return
 }
 
 func (list *List) Len() int {
