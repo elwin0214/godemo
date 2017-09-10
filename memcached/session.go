@@ -87,26 +87,7 @@ func (s *Session) close() {
 	glog.InfoDepth(1, "[close] goto close session\n")
 	if s.closed.Cas(false, true) {
 		s.conn.Close()
-		s.cancel()
-		//dont block the goroute which invoke the set/get/....
-	L1:
-		for {
-			select {
-			case cmd := <-s.sendingQueue:
-				cmd.respChan <- nil // todo block ??
-			default:
-				break L1
-			}
-		}
-	L2:
-		for {
-			select {
-			case cmd := <-s.sentQueue:
-				cmd.respChan <- nil // todo block ??
-			default:
-				break L2
-			}
-		}
+		s.cancel() //will wakeup the goroute which invoke the set/get/....
 		s.connector.onClose(s)
 	}
 }
